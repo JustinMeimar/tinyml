@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString, Display};
 
-#[derive(Eq, PartialEq, Debug, EnumIter, EnumString)]
+#[derive(Eq, PartialEq, Debug, EnumIter, EnumString, Display, Clone)]
 #[strum(serialize_all = "lowercase")]
 enum Keyword {
     Let,
@@ -19,7 +19,7 @@ enum Keyword {
     Type,
 }
 
-#[derive(Eq, PartialEq, Debug, EnumIter, EnumString, Display)]
+#[derive(Eq, PartialEq, Debug, EnumIter, EnumString, Display, Clone)]
 enum Syntactic {
     #[strum(to_string = "->")]
     Arrow,
@@ -37,7 +37,7 @@ enum Syntactic {
     Bar,
 }
 
-#[derive(Eq, PartialEq, Debug, EnumIter, EnumString)]
+#[derive(Eq, PartialEq, Debug, EnumIter, EnumString, Display, Clone)]
 enum Operator {
     #[strum(to_string = "+")]
     Plus,
@@ -57,7 +57,7 @@ enum Operator {
     Greater
 }
 
-#[derive(Eq, PartialEq, Debug, EnumIter, EnumString)]
+#[derive(Eq, PartialEq, Debug, EnumIter, EnumString, Display, Clone)]
 #[strum(serialize_all = "UPPERCASE")]
 enum Constructor {
     None,
@@ -66,7 +66,7 @@ enum Constructor {
     Cons,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 enum Literal {
     Id(String),
     Bool(String),
@@ -89,30 +89,30 @@ impl FromStr for Literal {
     type Err = ParseLiteralError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Define regex patterns in data section
+        // Define regex patterns to match just at the beginning
         lazy_static::lazy_static! {
-            static ref ID_RE: Regex = Regex::new(r"^[A-Za-z][A-Za-z0-9_]*$").unwrap();
-            static ref INT_RE: Regex = Regex::new(r"^[0-9_]+$").unwrap();
-            static ref FLOAT_RE: Regex = Regex::new(r"^[0-9]+\.[0-9]+$").unwrap();
-            static ref BOOL_RE: Regex = Regex::new(r"^(true|false)$").unwrap();
+            static ref ID_RE: Regex = Regex::new(r"^[A-Za-z][A-Za-z0-9_]*").unwrap();
+            static ref INT_RE: Regex = Regex::new(r"^[0-9_]+").unwrap();
+            static ref FLOAT_RE: Regex = Regex::new(r"^[0-9]+\.[0-9]+").unwrap();
+            static ref BOOL_RE: Regex = Regex::new(r"^(true|false)").unwrap();
         }
 
-        // Match against patterns in a specific order
-        if BOOL_RE.is_match(s) {
-            Ok(Literal::Bool(s.to_string()))
-        } else if FLOAT_RE.is_match(s) {
-            Ok(Literal::Float(s.to_string()))
-        } else if INT_RE.is_match(s) {
-            Ok(Literal::Integer(s.to_string()))
-        } else if ID_RE.is_match(s) {
-            Ok(Literal::Id(s.to_string()))
+        // Use find() to get the matched text and its length
+        if let Some(m) = BOOL_RE.find(s) {
+            Ok(Literal::Bool(m.as_str().to_string()))
+        } else if let Some(m) = FLOAT_RE.find(s) {
+            Ok(Literal::Float(m.as_str().to_string()))
+        } else if let Some(m) = INT_RE.find(s) {
+            Ok(Literal::Integer(m.as_str().to_string()))
+        } else if let Some(m) = ID_RE.find(s) {
+            Ok(Literal::Id(m.as_str().to_string()))
         } else {
             Err(ParseLiteralError(s.to_string()))
         }
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum TokenType {
     Keyword(Keyword),
     Syntactic(Syntactic),
@@ -156,10 +156,28 @@ pub struct Lexer {
     pos_line: usize,
     pos_col: usize,
     source: String,
+    pub token_dict: HashMap<String, TokenType>
 }
 
+use std::collections::HashMap;
 impl Lexer {
-        
+    fn make_token_dict() -> HashMap<String, TokenType> {
+        let mut token_map = HashMap::new();
+        for kw in Keyword::iter() {
+            token_map.insert(format!("{:?}", kw).to_lowercase(), TokenType::Keyword(kw));
+        }
+        for op in Operator::iter() {
+            token_map.insert(op.to_string(), TokenType::Operator(op));
+        }
+        for syn in Syntactic::iter() {
+            token_map.insert(syn.to_string(), TokenType::Syntactic(syn));
+        }
+        for cons in Constructor::iter() {
+            token_map.insert(cons.to_string().to_uppercase(), TokenType::Constructor(cons));
+        }
+        token_map
+    }
+    
     pub fn new(source: String) -> Self {
         return Lexer {
             cur_idx: 0,
@@ -169,6 +187,7 @@ impl Lexer {
             pos_col: 0,
             in_comment: false,
             source,
+            token_dict: Lexer::make_token_dict()
         };  
     }
     
@@ -188,7 +207,8 @@ impl Lexer {
     
     pub fn tokenize(&mut self) -> Option<Box<Token>> {  
         let mut head: Option<Box<Token>> = None;
-        let mut cur = &mut head; 
+        let mut cur = &mut head;
+
         while let Some(token) = self.scan_token() {
             // move token onto the heap     
             *cur = Some(Box::new(token));
@@ -212,75 +232,57 @@ impl Lexer {
             len,
             ty
         )
-    }
-
-    fn match_token_type(&self, slice: &str) -> Option<TokenType> {
-        // Try and match a keyword
-        if let Ok(kw) = Keyword::from_str(slice) {
-            return Some(TokenType::Keyword(kw));
-        } 
-       
-        // Try to match some syntactic tokens
-        else if let Ok(syn) = Syntactic::from_str(slice) {
-            return Some(TokenType::Syntactic(syn));
-        }
- 
-        // Try to match some syntactic tokens
-        else if let Ok(op) = Operator::from_str(slice) {
-            return Some(TokenType::Operator(op));
-        }
-
-        // Try to match a cons
-        else if let Ok(cons) = Constructor::from_str(slice) {
-            return Some(TokenType::Constructor(cons));
-        }
-        
-        // Try to match a cons
-        else if let Ok(lit) = Literal::from_str(slice) {
-            return Some(TokenType::Literal(lit));
-        }
-        None 
-    }
-    
+    } 
+   
     fn scan_token(&mut self) -> Option<Token> {
-        // 
-        self.start_idx = self.cur_idx; 
         self.skip_ws();
-        if self.cur_idx >= self.max_idx {
+        self.start_idx = self.cur_idx;
+        
+        if self.cur_idx >= self.source.len() {
             return Some(Token::new(self.pos_line, self.pos_col, 0, TokenType::EOF));
         }
         
-        let source_slice = &self.source[self.cur_idx..]; 
-        let end_pos = source_slice.find(|c: char| c.is_whitespace())
-            .unwrap_or(source_slice.len());
-        
-        // Try to match the whole slice up to whitespace as a fast path
-        let whole_slice = &source_slice[..end_pos];
-        if let Some(token_type) = self.match_token_type(whole_slice) {
-            let token = self.make_token(whole_slice.len(), token_type);
-            self.cur_idx += whole_slice.len();
-            self.pos_col += whole_slice.len();
-            return Some(token);
-        }
-        
-        let max_len = std::cmp::min(10, source_slice.len());
-        let mut longest_token: Option<(usize, TokenType)> = None; 
-        for i in 1..=max_len {
-            if let Some(sub_slice) = source_slice.get(..i) {
-                if let Some(token_type) = self.match_token_type(sub_slice) {
-                    longest_token = Some((sub_slice.len(), token_type));
+        let source_slice = &self.source[self.start_idx..];
+
+        // Look for longest statically defined tokens 
+        let longest_match = self.token_dict.iter()
+            .filter(|(tok_key, _)| source_slice.starts_with(&**tok_key))
+            .max_by_key(|(tok_key, _)| tok_key.len())
+            .map(|(tok_key, tok_ty)| (tok_ty.clone(), tok_key.len()));
+
+
+        match longest_match {
+            Some((tok_ty, tok_len)) => { 
+                // Advance the lexer position
+                self.cur_idx += tok_len;
+                self.pos_col += tok_len;
+                Some(self.make_token(tok_len, tok_ty))
+            },
+            None => {
+                // Try literal patterns
+                match Literal::from_str(source_slice) {
+                    Ok(lit) => {
+                        // Get the length of the match
+                        let lit_len = match &lit {
+                            Literal::Id(s) => s.len(),
+                            Literal::Bool(s) => s.len(),
+                            Literal::Integer(s) => s.len(),
+                            Literal::Float(s) => s.len(),
+                        }; 
+                        // Advance the lexer position
+                        self.cur_idx += lit_len;
+                        self.pos_col += lit_len;
+                        Some(self.make_token(lit_len, TokenType::Literal(lit)))
+                    },
+                    Err(_) => {
+                        // Invalid token
+                        self.cur_idx += 1;
+                        self.pos_col += 1;
+                        Some(self.make_token(1, TokenType::Error))
+                    }
                 }
             }
         }
-        
-        // After finding longest valid token, create and return it
-        if let Some((len, token_type)) = longest_token {
-            let token = self.make_token(len, token_type);
-            self.cur_idx += len;
-            self.pos_col += len;
-            return Some(token);
-        }
-        None
     }
 
     fn skip_ws(&mut self) {
