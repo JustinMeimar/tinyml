@@ -1,9 +1,9 @@
 
-// use tinyml::lexer::
 use std::env;
 use std::process;
 use tinyml::util::read_file;
 use tinyml::lexer::Lexer;
+use tinyml::parser::Parser;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -20,11 +20,20 @@ fn main() {
     // create the lexer
     let mut lexer = Lexer::new(source); 
     
-    // print token stream
-    let mut head = lexer.tokenize(); 
-    while let Some(h) = head {
-        println!("{:?}", h.ty);
-        head = h.next;
+    // get token stream
+    let tokens = lexer.tokenize();
+    
+    // move tokens into the parser
+    let mut parser = Parser::new(tokens); 
+    
+    // parse and return the parse tree
+    let ast = parser.parse();
+    match ast {
+        Ok(root) => {
+            println!("Parsed AST");
+        },
+        Err(e) => eprintln!("Failed to parse: {:?}", e)
     }
+    //
 }
 
