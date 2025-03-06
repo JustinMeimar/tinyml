@@ -99,6 +99,10 @@ pub enum TokenType {
     StrictGreater,
     #[strum(to_string = ">=")]
     Greater,
+    #[strum(to_string = "==")]
+    CompEqual,
+    #[strum(to_string = "!=")]
+    CompNotEqual,
     
     Id(String),
     Bool(String),

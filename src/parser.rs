@@ -37,7 +37,7 @@ impl Parser {
             Err(format!("Expected '{:?}', got EOF", expected))
         }
     }
-    pub fn parse(&mut self) -> Result<AstNode, String> {
+    pub fn parse(&mut self) -> Result<Box<AstNode>, String> {
         self.tokens.iter().for_each(|x| println!(" == {:?}", x.ty));
         
         let mut decls = Vec::new();
@@ -46,7 +46,7 @@ impl Parser {
                 decls.push(Box::new(decl));
             }
         }
-        Ok(AstNode::Program(decls))
+        Ok(Box::new(AstNode::Program(decls)))
     }
 
     fn parse_type(&mut self) -> Result<Type, String> {
@@ -272,6 +272,37 @@ impl Parser {
         
         Ok(left)
     }
+    
+    fn parse_comp_expr(&mut self) -> Result<AstNode, String> {
+        let mut left = self.parse_add_expr()?;
+        
+        loop {
+            let op = match self.peek() {
+                Some(TokenType::Less)           => Some(BinOp::Lt),
+                Some(TokenType::StrictLess)     => Some(BinOp::Lte),
+                Some(TokenType::Greater)        => Some(BinOp::Gt),
+                Some(TokenType::StrictGreater)  => Some(BinOp::Gte),
+                Some(TokenType::CompEqual)      => Some(BinOp::Eq),
+                Some(TokenType::CompNotEqual)   => Some(BinOp::Eq),
+                _ => None,
+            };
+            
+            if let Some(bin_op) = op {
+                self.consume();
+                let right = self.parse_add_expr()?;
+                left = AstNode::BinOp {
+                    left: Box::new(left),
+                    op: bin_op,
+                    right: Box::new(right),
+                };
+            } else {
+                break;
+            }
+        }
+        
+        Ok(left)
+    }
+    
 
     fn parse_match(&mut self) -> Result<Vec<(AstPattern, Box<AstNode>)>, String> {
         let mut arms = Vec::new();
@@ -327,7 +358,7 @@ impl Parser {
                     clauses,
                 })
             },
-            _ => self.parse_add_expr(),
+            _ => self.parse_comp_expr(),
         }
     }
 

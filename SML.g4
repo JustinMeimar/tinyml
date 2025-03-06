@@ -11,9 +11,12 @@ dec : 'val' pat (':' typ)? '=' exp
 exp : 'if' exp 'then' exp 'else' exp
     | 'let' dec 'in' exp 'end'
     | 'fn' match
-    |  add_exp
+    |  comp_exp
     ;
 
+comp_exp : add_exp
+         | comp_exp ('=' | '<' | '>' | '<=' | '>=') add_exp
+         ;
 add_exp : mul_exp                           
         | add_exp ('+' | '-') mul_exp
         ;

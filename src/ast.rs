@@ -1,14 +1,20 @@
 use crate::lexer::Token;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinOp {
     Add,
     Sub,
     Mul,
     Div,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    Eq,
+    Neq,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AstNode {
     Program(Vec<Box<AstNode>>),
     ValDecl {
@@ -48,7 +54,9 @@ pub enum AstNode {
     List(Vec<Box<AstNode>>),
 }
 
-#[derive(Debug)]
+impl AstNode { }
+
+#[derive(Debug, Clone)]
 pub enum AstPattern {
     Literal,
     Id(String),
@@ -57,7 +65,7 @@ pub enum AstPattern {
     Pair(Box<AstPattern>, Box<AstPattern>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Int,
     Bool,

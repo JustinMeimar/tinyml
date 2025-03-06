@@ -1,11 +1,13 @@
 
 use std::env;
 use std::process;
+use std::error::Error;
 use tinyml::util::read_file;
 use tinyml::lexer::Lexer;
 use tinyml::parser::Parser;
+use tinyml::ast_visitor::DebugVisitor;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
     
     if args.len() < 2 {
@@ -27,14 +29,14 @@ fn main() {
     let mut parser = Parser::new(tokens); 
     
     // parse and return the parse tree
-    let ast = parser.parse();
-    match ast {
-        Ok(root) => {
-            println!("Parsed AST: {:?}", root);
-            
-        },
-        Err(e) => eprintln!("Failed to parse: {:?}", e)
-    }
-
+    let ast = parser.parse()?;
+    
+    // build the AST visitor
+    let mut visitor = DebugVisitor::new();
+    
+    // visit the ast
+    visitor.visit::<()>(&*ast)?;
+    
+    Ok(())
 }
 
