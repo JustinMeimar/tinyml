@@ -1,0 +1,24 @@
+{
+  "testDir": "./testfiles",
+  "testedExecutablePaths": {
+    "cargo": "/home/justin/.cargo/bin/cargo"
+  },
+  "toolchains": {
+    "rust-toolchain": [  
+      {
+        "stepName": "compile-and-run",
+        "executablePath": "/home/justin/.cargo/bin/cargo",
+        "arguments": ["run", "$INPUT"],
+        "allowError": false
+      },
+      {
+        "stepName": "compile-and-run",
+        "executablePath": "/usr/bin/touch",
+        "arguments": ["fake.out"],
+        "allowError": false
+      }
+      
+    ]
+  }
+}
+
