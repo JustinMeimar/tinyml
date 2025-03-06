@@ -7,19 +7,12 @@ dec : 'val' pat (':' typ)? '=' exp
     | dec ';' dec                           
     ;
 
-exp : if_exp ;                              
 
-if_exp : let_exp                            
-       | 'if' exp 'then' exp 'else' exp
-       ;
-
-let_exp : fn_exp                            
-        | 'let' dec 'in' exp 'end'
-        ;
-
-fn_exp : add_exp                            
-       | 'fn' match
-       ;
+exp : 'if' exp 'then' exp 'else' exp
+    | 'let' dec 'in' exp 'end'
+    | 'fn' match
+    |  add_exp
+    ;
 
 add_exp : mul_exp                           
         | add_exp ('+' | '-') mul_exp
@@ -52,13 +45,17 @@ match : pat '=>' exp
       | pat '=>' exp '|' match              
       ;
 
-typ : 'int'                                 
-    | 'char'                                
-    | 'string'                              
-    | VAR                                   
-    | typ '->' typ                         
-    | typ '*' typ                          
-    ;
+
+type : 'int' typ_rest
+    | 'char' typ_rest
+    | 'string' typ_rest
+    | var typ_rest
+
+typ_rest : '->' type typ_rest
+        | '*' type typ_rest
+        | ε
+
+var: ''' ID;
 
 literal : INT | CHAR | STRING | BOOL ;
 

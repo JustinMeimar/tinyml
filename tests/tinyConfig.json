@@ -1,0 +1,16 @@
+{
+  "testDir": "./testfiles",
+  "testedExecutablePaths": {
+    "cargo": "/home/justin/.cargo/bin/cargo"
+  },
+  "toolchains": {
+    "rust-toolchain": [
+      {
+        "stepName": "compile-and-run",
+        "executablePath": "$EXE",
+        "arguments": ["run", "$INPUT"],
+        "allowError": false
+      } 
+    ]
+  }
+}

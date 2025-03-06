@@ -35,9 +35,11 @@ pub enum TokenType {
     #[strum(to_string = "int")]
     TypeInt,
     #[strum(to_string = "bool")]
-    TypeBool,
-    #[strum(to_string = "'a")]
-    TypeAlpha,
+    TypeBool, 
+    #[strum(to_string = "char")]
+    TypeChar,
+    #[strum(to_string = "string")]
+    TypeString,
     #[strum(to_string = "if")]
     If,
     #[strum(to_string = "then")]
@@ -53,6 +55,10 @@ pub enum TokenType {
     CloseComment,
     #[strum(to_string = "->")]
     Arrow,
+    #[strum(to_string = "[")]
+    LeftBracket,
+    #[strum(to_string = "]")]
+    RightBracket,
     #[strum(to_string = "(")]
     LeftParen,
     #[strum(to_string = ")")]
@@ -69,9 +75,13 @@ pub enum TokenType {
     Cons,
     #[strum(to_string = ":")]
     Colon,
+    #[strum(to_string = ";")]
+    SemiColon,
     #[strum(to_string = "_")]
     Wildcard,
-
+    #[strum(to_string = "'")]
+    SingleQuote,
+    
     // Operators
     #[strum(to_string = "+")]
     Plus,
@@ -93,6 +103,7 @@ pub enum TokenType {
     Id(String),
     Bool(String),
     Integer(String),
+    String(String),
     Float(String),
     EOF,
     Error,
@@ -269,13 +280,11 @@ impl Lexer {
         (None, 0)
     }
 
-    // pub fn tokenize(&mut self) -> Option<Box<Token>> {
     pub fn tokenize(&mut self) -> Vec<Token> {
-        // let mut head: Option<Box<Token>> = None;
-        let mut tokens: Vec<Token> = Vec::new(); 
-        // let mut cur = &mut head;
-        
+
+        let mut tokens: Vec<Token> = Vec::new();  
         while self.cur_idx < self.source.len() {
+    // pub fn tokenize(&mut self) -> Option<Box<Token>> {
             self.start_idx = self.cur_idx;
             
             // Get the remaining part of the source

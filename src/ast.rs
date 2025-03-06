@@ -1,3 +1,13 @@
+use crate::lexer::Token;
+
+#[derive(Debug)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
 #[derive(Debug)]
 pub enum AstNode {
     Program(Vec<Box<AstNode>>),
@@ -25,7 +35,7 @@ pub enum AstNode {
     },
     BinOp {
         left: Box<AstNode>,
-        op: String,
+        op: BinOp,
         right: Box<AstNode>,
     },
     App {
@@ -49,9 +59,10 @@ pub enum AstPattern {
 
 #[derive(Debug)]
 pub enum Type {
-    Int(String),
-    Char(String),
-    String(String),
+    Int,
+    Bool,
+    Char,
+    String,
     Var(String),
     Arrow(Box<Type>, Box<Type>),
     Product(Box<Type>, Box<Type>),

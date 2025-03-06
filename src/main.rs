@@ -30,10 +30,11 @@ fn main() {
     let ast = parser.parse();
     match ast {
         Ok(root) => {
-            println!("Parsed AST");
+            println!("Parsed AST: {:?}", root);
+            
         },
         Err(e) => eprintln!("Failed to parse: {:?}", e)
     }
-    //
+
 }
 
