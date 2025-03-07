@@ -1,4 +1,5 @@
-use crate::{ast::{AstNode, AstPattern, Type, BinOp}, lexer::{Token, TokenType}};
+use crate::{ast::{AstNode, LiteralValue, AstPattern, Type, BinOp}, lexer::{Token, TokenType}};
+use crate::parse_error::{ParseErrorKind, ParseError};
 use std::result::Result;
 
 #[derive(Debug)]
@@ -26,18 +27,26 @@ impl Parser {
         }
     }
     
-    fn expect(&mut self, expected: TokenType) -> Result<(), String> {
+    fn expect(&mut self, expected: TokenType) -> Result<(), ParseError> {
+        let pos = self.pos;
         if let Some(token) = self.consume() {
             if token.ty == expected {
                 Ok(())
             } else {
-                Err(format!("Expected '{:?}', got '{:?}'", expected, token))
+                Err(ParseError::new(
+                    ParseErrorKind::UnexpectedToken,
+                    format!("Expected '{:?}', got '{:?}'", expected, token.ty)
+                ).with_position(pos))
             }
         } else {
-            Err(format!("Expected '{:?}', got EOF", expected))
+            Err(ParseError::new(
+                ParseErrorKind::UnexpectedEOF,
+                format!("Expected '{:?}', got EOF", expected)
+            ).with_position(pos))
         }
     }
-    pub fn parse(&mut self) -> Result<Box<AstNode>, String> {
+
+    pub fn parse(&mut self) -> Result<Box<AstNode>, ParseError> {
         self.tokens.iter().for_each(|x| println!(" == {:?}", x.ty));
         
         let mut decls = Vec::new();
@@ -49,7 +58,8 @@ impl Parser {
         Ok(Box::new(AstNode::Program(decls)))
     }
 
-    fn parse_type(&mut self) -> Result<Type, String> {
+    fn parse_type(&mut self) -> Result<Type, ParseError> {
+        let pos = self.pos;
         let prefix = match self.peek() {
             Some(TokenType::TypeInt) => {
                 self.consume();
@@ -68,13 +78,20 @@ impl Parser {
                 Ok(Type::String)
             },
             Some(TokenType::SingleQuote) => {
-                self.consume(); // Consume the single quote
+                self.consume();
                 match self.peek() {
                     Some(TokenType::Id(id)) => {
                         self.consume();
                         Ok(Type::Var(id))
                     },
-                    _ => Err("Failed to parse rule: var: ' ID".to_string()),
+                    Some(token) => Err(ParseError::new(
+                        ParseErrorKind::UnexpectedToken,
+                        format!("Failed to parse rule: var: ' ID. Expected ID, got {:?}", token)
+                    ).with_position(self.pos)),
+                    None => Err(ParseError::new(
+                        ParseErrorKind::UnexpectedEOF,
+                        "Failed to parse rule: var: ' ID. Unexpected EOF".to_string()
+                    ).with_position(self.pos)),
                 }
             },
             Some(TokenType::LeftParen) => {
@@ -85,7 +102,14 @@ impl Parser {
                 self.expect(TokenType::RightParen)?;
                 Ok(Type::Product(Box::new(type1), Box::new(type2)))
             },
-            _ => Err("Expected a type".to_string()),
+            Some(token) => Err(ParseError::new(
+                ParseErrorKind::UnexpectedToken,
+                format!("Expected a type, got {:?}", token)
+            ).with_position(pos)),
+            None => Err(ParseError::new(
+                ParseErrorKind::UnexpectedEOF,
+                "Expected a type, got EOF".to_string()
+            ).with_position(pos)),
         }?;
 
         match self.peek() {
@@ -103,54 +127,41 @@ impl Parser {
         }
     }
 
-    fn parse_atom(&mut self) -> Result<AstNode, String> {
+    fn parse_atom(&mut self) -> Result<AstNode, ParseError> {
+        let pos = self.pos;
         match self.peek() {
             Some(TokenType::Integer(n)) => {
                 self.consume();
-                // Note: AstPattern doesn't have an IntLit variant, so we use Id
-                Ok(AstNode::Id(n.to_string()))
+                Ok(AstNode::Literal(LiteralValue::Integer(n)))
             },
             Some(TokenType::Bool(b)) => {
                 self.consume();
-                // Note: AstPattern doesn't have a BoolLit variant, so we use Id
-                Ok(AstNode::Id(b.to_string()))
+                Ok(AstNode::Literal(LiteralValue::Boolean(b)))
             },
             Some(TokenType::String(s)) => {
                 self.consume();
-                // Note: AstPattern doesn't have a StringLit variant, so we use Id
-                Ok(AstNode::Id(s))
+                Ok(AstNode::Literal(LiteralValue::String(s)))
             },
             Some(TokenType::Id(id)) => {
                 self.consume();
                 Ok(AstNode::Id(id))
             },
             Some(TokenType::LeftParen) => {
-                self.consume(); // Consume '('
-                
-                // Check for empty tuple '()'
+                self.consume(); 
                 if let Some(TokenType::RightParen) = self.peek() {
                     self.consume(); // Consume ')'
-                    // Using a 0-element Tuple for Unit
                     return Ok(AstNode::Tuple(Vec::new()));
                 }
                 
-                // Parse an expression
-                let expr = self.parse_expr()?;
-                
-                // Check if it's a tuple '(exp, exp, ...)'
+                let expr = self.parse_expr()?; 
                 if let Some(TokenType::Comma) = self.peek() {
-                    self.consume(); // Consume ','
-                    let mut expressions = vec![Box::new(expr)];
-                    
-                    // Parse second expression (required for tuple)
-                    expressions.push(Box::new(self.parse_expr()?));
-                    
-                    // Parse any additional expressions
+                    self.consume();
+                    let mut expressions = vec![Box::new(expr)]; 
+                    expressions.push(Box::new(self.parse_expr()?)); 
                     while let Some(TokenType::Comma) = self.peek() {
                         self.consume(); // Consume ','
                         expressions.push(Box::new(self.parse_expr()?));
-                    }
-                    
+                    } 
                     self.expect(TokenType::RightParen)?;
                     Ok(AstNode::Tuple(expressions))
                 } else {
@@ -158,33 +169,34 @@ impl Parser {
                     Ok(expr)
                 }
             },
-            Some(TokenType::LeftParen) => {
+            Some(TokenType::LeftBracket) => { // Fixed from LeftParen to LeftBracket
                 self.consume(); // Consume '['
                 
-                // Check for empty list '[]'
-                if let Some(TokenType::RightParen) = self.peek() {
+                if let Some(TokenType::RightBracket) = self.peek() {
                     self.consume(); // Consume ']'
                     return Ok(AstNode::List(Vec::new()));
                 }
-                
-                // Parse a non-empty list
                 let mut items = Vec::new();
                 items.push(Box::new(self.parse_expr()?));
-                
-                // Parse additional items
                 while let Some(TokenType::Comma) = self.peek() {
                     self.consume(); // Consume ','
                     items.push(Box::new(self.parse_expr()?));
                 }
-                
                 self.expect(TokenType::RightBracket)?;
                 Ok(AstNode::List(items))
             },
-            _ => Err("Expected an atom".to_string()),
+            Some(token) => Err(ParseError::new(
+                ParseErrorKind::UnexpectedToken,
+                format!("Expected an atom, got {:?}", token)
+            ).with_position(pos)),
+            None => Err(ParseError::new(
+                ParseErrorKind::UnexpectedEOF,
+                "Expected an atom, got EOF".to_string()
+            ).with_position(pos)),
         }
     }
 
-    fn parse_app_expr(&mut self) -> Result<AstNode, String> {
+    fn parse_app_expr(&mut self) -> Result<AstNode, ParseError> {
         let mut expr = self.parse_atom()?;
         
         // Keep applying atoms as long as we see them
@@ -213,7 +225,7 @@ impl Parser {
         }
     }
 
-    fn parse_mul_expr(&mut self) -> Result<AstNode, String> {
+    fn parse_mul_expr(&mut self) -> Result<AstNode, ParseError> {
         let mut left = self.parse_app_expr()?;
         
         loop {
@@ -243,7 +255,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_add_expr(&mut self) -> Result<AstNode, String> {
+    fn parse_add_expr(&mut self) -> Result<AstNode, ParseError> {
         let mut left = self.parse_mul_expr()?;
         
         loop {
@@ -273,7 +285,7 @@ impl Parser {
         Ok(left)
     }
     
-    fn parse_comp_expr(&mut self) -> Result<AstNode, String> {
+    fn parse_comp_expr(&mut self) -> Result<AstNode, ParseError> {
         let mut left = self.parse_add_expr()?;
         
         loop {
@@ -303,8 +315,8 @@ impl Parser {
         Ok(left)
     }
     
-
-    fn parse_match(&mut self) -> Result<Vec<(AstPattern, Box<AstNode>)>, String> {
+    fn parse_match(&mut self) -> Result<Vec<(AstPattern, Box<AstNode>)>, ParseError> {
+        let pos = self.pos;
         let mut arms = Vec::new();
         
         let pattern = self.parse_pattern()?;
@@ -321,11 +333,18 @@ impl Parser {
             arms.push((pattern, expr));
         }
         
+        if arms.is_empty() {
+            return Err(ParseError::new(
+                ParseErrorKind::InvalidPattern,
+                "Match expression must have at least one arm".to_string()
+            ).with_position(pos));
+        }
+        
         Ok(arms)
     }
 
-    // Complete the expr parsing
-    fn parse_expr(&mut self) -> Result<AstNode, String> {
+    fn parse_expr(&mut self) -> Result<AstNode, ParseError> {
+        let pos = self.pos;
         match self.peek() {
             Some(TokenType::If) => {
                 self.consume(); // Eat 'if'
@@ -358,23 +377,35 @@ impl Parser {
                     clauses,
                 })
             },
-            _ => self.parse_comp_expr(),
+            Some(_) => self.parse_comp_expr(),
+            None => Err(ParseError::new(
+                ParseErrorKind::UnexpectedEOF,
+                "Unexpected EOF while parsing expression".to_string()
+            ).with_position(pos)),
         }
     }
 
-    fn parse_decl(&mut self) -> Result<AstNode, String> {
+    fn parse_decl(&mut self) -> Result<AstNode, ParseError> {
+        println!("Peek: {:?}", self.peek());
+        let pos = self.pos;
         match self.peek() {
             Some(TokenType::Val) => {
+                println!("Match {:?}", self.peek());
                 self.consume(); // Eat 'val'
+                
+                // More descriptive error for pattern parsing
                 let pat = self.parse_pattern()?;
+                
                 let typ = if self.peek() == Some(TokenType::Colon) {
                     self.consume();
                     Some(self.parse_type()?)
                 } else {
                     None 
                 };
+                
                 self.expect(TokenType::Equal)?;
                 let exp = Box::new(self.parse_expr()?);
+                
                 Ok(AstNode::ValDecl {
                     pat,
                     typ,
@@ -386,31 +417,45 @@ impl Parser {
                 if let Some(TokenType::Id(name)) = self.peek() {
                     let id = name.clone();
                     self.consume(); // Consume the ID
+                    
                     let clauses = self.parse_match()?;
+                    
                     let typ = if self.peek() == Some(TokenType::Colon) {
                         self.consume();
                         Some(self.parse_type()?)
                     } else {
                         None
                     };
+                    
                     Ok(AstNode::FunDecl {
                         name: id,
                         clauses,
                         typ,
                     })
                 } else {
-                    Err("Expected identifier after 'fun'".to_string())
+                    Err(ParseError::new(
+                        ParseErrorKind::UnexpectedToken,
+                        "Expected identifier after 'fun'".to_string()
+                    ).with_position(self.pos))
                 }
             },
-            _ => Err("Failed to parse declaration".to_string())
+            Some(token) => Err(ParseError::new(
+                ParseErrorKind::UnexpectedToken,
+                format!("Expected 'val' or 'fun', got '{:?}'", token)
+            ).with_position(pos)),
+            None => Err(ParseError::new(
+                ParseErrorKind::UnexpectedEOF,
+                "Unexpected end of input while parsing declaration".to_string()
+            ).with_position(pos))
         }
     }
 
-    fn parse_decls(&mut self) -> Result<Vec<AstNode>, String> {
+    fn parse_decls(&mut self) -> Result<Vec<AstNode>, ParseError> {
+        let pos = self.pos;
         // Multiple SC separated declarations may be made on the same line
         let mut decls = Vec::new();
         loop {
-            let dec =self.parse_decl()?;
+            let dec = self.parse_decl()?;
             decls.push(dec); 
             
             // Handle extra declarations
@@ -422,10 +467,19 @@ impl Parser {
                 _ => break 
             } 
         }
+        
+        if decls.is_empty() {
+            return Err(ParseError::new(
+                ParseErrorKind::InvalidDeclaration,
+                "Expected at least one declaration".to_string()
+            ).with_position(pos));
+        }
+        
         Ok(decls) 
     }
 
-    fn parse_pattern(&mut self) -> Result<AstPattern, String> {
+    fn parse_pattern(&mut self) -> Result<AstPattern, ParseError> {
+        let pos = self.pos;
         match self.peek() {
             Some(TokenType::Wildcard) => {
                 self.consume();
@@ -455,10 +509,20 @@ impl Parser {
                     self.consume();
                     Ok(AstPattern::Var(id))
                 } else {
-                    Err("Expected identifier after single quote in pattern".to_string())
+                    Err(ParseError::new(
+                        ParseErrorKind::UnexpectedToken,
+                        "Expected identifier after single quote in pattern".to_string()
+                    ).with_position(self.pos))
                 }
             },
-            _ => Err("Invalid pattern".to_string()),
+            Some(token) => Err(ParseError::new(
+                ParseErrorKind::UnexpectedToken,
+                format!("Invalid pattern, unexpected token: {:?}", token)
+            ).with_position(pos)),
+            None => Err(ParseError::new(
+                ParseErrorKind::UnexpectedEOF,
+                "Unexpected EOF while parsing pattern".to_string()
+            ).with_position(pos)),
         }
     }
 }

@@ -15,6 +15,13 @@ pub enum BinOp {
 }
 
 #[derive(Debug, Clone)]
+pub enum LiteralValue {
+    Integer(String),
+    Boolean(String),
+    String(String),
+}
+
+#[derive(Debug, Clone)]
 pub enum AstNode {
     Program(Vec<Box<AstNode>>),
     ValDecl {
@@ -52,6 +59,7 @@ pub enum AstNode {
     Var(String),
     Tuple(Vec<Box<AstNode>>),
     List(Vec<Box<AstNode>>),
+    Literal(LiteralValue),
 }
 
 impl AstNode { }

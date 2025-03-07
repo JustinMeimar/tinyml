@@ -3,3 +3,4 @@ pub mod ast;
 pub mod parser;
 pub mod util;
 pub mod ast_visitor;
+pub mod parse_error;

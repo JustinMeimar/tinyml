@@ -1,4 +1,4 @@
-use crate::ast::{AstNode, AstPattern, Type, BinOp};
+use crate::ast::{AstNode, AstPattern, BinOp, LiteralValue, Type};
 
 pub struct DebugVisitor {
     debug_depth: usize,
@@ -37,6 +37,7 @@ pub trait Visitable<T> {
     fn visit_var_pattern(&mut self, name: &str) -> Result<T, String>;
     fn visit_pair_pattern(&mut self, first: &AstPattern, second: &AstPattern) -> Result<T, String>; 
     fn visit_type(&mut self, typ: &Option<Type>) -> Result<T, String>;
+    fn visit_literal(&mut self, lit_node: &LiteralValue) -> Result<T, String>;
 }
 
 impl DebugVisitor {
@@ -68,7 +69,20 @@ impl<T: Default> Visitable<T> for DebugVisitor {
             AstNode::Var(name) => self.visit_var(name),
             AstNode::Tuple(elements) => self.visit_tuple(elements),
             AstNode::List(elements) => self.visit_list(elements),
+            AstNode::Literal(lit) => self.visit_literal(lit),
         }
+    }
+    fn visit_literal(&mut self, lit: &LiteralValue) -> Result<T, String> {
+        let (val, ty) = match lit {
+            LiteralValue::Integer(s) => (s, "int"),
+            LiteralValue::Boolean(s) => (s, "bool"),
+            LiteralValue::String(s) => (s, "string"),
+        }; 
+        self.debug_depth += 1; 
+        println!("{}<literal val=\"{}\" ty=\"{}\" />", 
+                 "  ".repeat(self.debug_depth), val, ty);
+        self.debug_depth -= 1;
+        Ok(T::default())    
     }
 
     fn visit_program(&mut self, stmts: &Vec<Box<AstNode>>) -> Result<T, String> {
@@ -81,7 +95,7 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         } 
         self.debug_depth -= 1;
         
-        println!("{}</?program>", indent);
+        println!("{}</program>", indent);
         Ok(T::default())
     }
 
@@ -116,12 +130,12 @@ impl<T: Default> Visitable<T> for DebugVisitor {
             self.visit_node(body)?; 
             self.debug_depth -= 1;
             
-            println!("{}</?clause>", clause_indent);
+            println!("{}</clause>", clause_indent);
         }
         
         self.debug_depth -= 1;
         
-        println!("{}</?fun_decl>", indent);
+        println!("{}</fun_decl>", indent);
         Ok(T::default())
     }
 
@@ -134,21 +148,21 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let cond_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<condition>", cond_indent);
         self.visit_node(cond)?;
-        println!("{}</?condition>", cond_indent);
+        println!("{}</condition>", cond_indent);
         
         let then_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<then>", then_indent);
         self.visit_node(then)?;
-        println!("{}</?then>", then_indent);
+        println!("{}</then>", then_indent);
         
         let else_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<else>", else_indent);
         self.visit_node(else_)?;
-        println!("{}</?else>", else_indent);
+        println!("{}</else>", else_indent);
         
         self.debug_depth -= 1;
         
-        println!("{}</?if>", indent);
+        println!("{}</if>", indent);
         Ok(T::default())
     }
 
@@ -161,16 +175,16 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let decl_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<decl>", decl_indent);
         self.visit_node(decl)?;
-        println!("{}</?decl>", decl_indent);
+        println!("{}</decl>", decl_indent);
         
         let body_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<body>", body_indent);
         self.visit_node(body)?;
-        println!("{}</?body>", body_indent);
+        println!("{}</body>", body_indent);
         
         self.debug_depth -= 1;
         
-        println!("{}</?let>", indent);
+        println!("{}</let>", indent);
         Ok(T::default())
     }
 
@@ -191,12 +205,12 @@ impl<T: Default> Visitable<T> for DebugVisitor {
             
             self.debug_depth -= 1;
             
-            println!("{}</?clause>", clause_indent);
+            println!("{}</clause>", clause_indent);
         }
         
         self.debug_depth -= 1;
         
-        println!("{}</?fn>", indent);
+        println!("{}</fn>", indent);
         Ok(T::default())
     }
 
@@ -209,16 +223,16 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let left_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<left>", left_indent);
         self.visit_node(left)?;
-        println!("{}</?left>", left_indent);
+        println!("{}</left>", left_indent);
         
         let right_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<right>", right_indent);
         self.visit_node(right)?;
-        println!("{}</?right>", right_indent);
+        println!("{}</right>", right_indent);
         
         self.debug_depth -= 1;
         
-        println!("{}</?bin_op>", indent);
+        println!("{}</bin_op>", indent);
         Ok(T::default())
     }
 
@@ -231,30 +245,30 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let func_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<func>", func_indent);
         self.visit_node(func)?;
-        println!("{}</?func>", func_indent);
+        println!("{}</func>", func_indent);
         
         let arg_indent = " ".repeat(2 * self.debug_depth);
         println!("{}<arg>", arg_indent);
         self.visit_node(arg)?;
-        println!("{}</?arg>", arg_indent);
+        println!("{}</arg>", arg_indent);
         
         self.debug_depth -= 1;
         
-        println!("{}</?app>", indent);
+        println!("{}</app>", indent);
         Ok(T::default())
     }
 
     fn visit_id(&mut self, name: &str) -> Result<T, String> {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<id value=\"{}\">", indent, name);
-        println!("{}</?id>", indent);
+        println!("{}</id>", indent);
         Ok(T::default())
     }
 
     fn visit_var(&mut self, name: &str) -> Result<T, String> {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<var value=\"{}\">", indent, name);
-        println!("{}</?var>", indent);
+        println!("{}</var>", indent);
         Ok(T::default())
     }
 
@@ -262,15 +276,13 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<tuple size=\"{}\">", indent, elements.len());
         
-        self.debug_depth += 1;
-        
+        self.debug_depth += 1; 
         for elem in elements {
             self.visit_node(elem)?;
-        }
-        
+        } 
         self.debug_depth -= 1;
         
-        println!("{}</?tuple>", indent);
+        println!("{}</tuple>", indent);
         Ok(T::default())
     }
 
@@ -278,15 +290,12 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<list size=\"{}\">", indent, elements.len());
         
-        self.debug_depth += 1;
-        
+        self.debug_depth += 1; 
         for elem in elements {
             self.visit_node(elem)?;
-        }
-        
-        self.debug_depth -= 1;
-        
-        println!("{}</?list>", indent);
+        } 
+        self.debug_depth -= 1; 
+        println!("{}</list>", indent);
         Ok(T::default())
     }
 
@@ -303,28 +312,28 @@ impl<T: Default> Visitable<T> for DebugVisitor {
     fn visit_literal_pattern(&mut self) -> Result<T, String> {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<literal_pattern>", indent);
-        println!("{}</?literal_pattern>", indent);
+        println!("{}</literal_pattern>", indent);
         Ok(T::default())
     }
 
     fn visit_id_pattern(&mut self, name: &str) -> Result<T, String> {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<id_pattern value=\"{}\">", indent, name);
-        println!("{}</?id_pattern>", indent);
+        println!("{}</id_pattern>", indent);
         Ok(T::default())
     }
 
     fn visit_wildcard_pattern(&mut self) -> Result<T, String> {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<wildcard_pattern>", indent);
-        println!("{}</?wildcard_pattern>", indent);
+        println!("{}</wildcard_pattern>", indent);
         Ok(T::default())
     }
 
     fn visit_var_pattern(&mut self, name: &str) -> Result<T, String> {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<var_pattern value=\"{}\">", indent, name);
-        println!("{}</?var_pattern>", indent);
+        println!("{}</var_pattern>", indent);
         Ok(T::default())
     }
 
@@ -332,14 +341,12 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         let indent = " ".repeat(2 * self.debug_depth);
         println!("{}<pair_pattern>", indent);
         
-        self.debug_depth += 1;
-        
+        self.debug_depth += 1; 
         self.visit_pattern(first)?;
-        self.visit_pattern(second)?;
-        
+        self.visit_pattern(second)?; 
         self.debug_depth -= 1;
         
-        println!("{}</?pair_pattern>", indent);
+        println!("{}</pair_pattern>", indent);
         Ok(T::default())
     }
 
@@ -348,13 +355,12 @@ impl<T: Default> Visitable<T> for DebugVisitor {
         
         if let Some(t) = typ {
             println!("{}<type value=\"{:?}\">", indent, t);
-            println!("{}</?type>", indent);
+            println!("{}</type>", indent);
         } else {
             println!("{}<type value=\"none\">", indent);
-            println!("{}</?type>", indent);
-        }
-        
+            println!("{}</type>", indent);
+        }   
         Ok(T::default())
-    }
+    } 
 }
 
