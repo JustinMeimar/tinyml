@@ -62,7 +62,7 @@ pub enum AstNode {
     Literal(LiteralValue),
 }
 
-impl AstNode { }
+impl AstNode {}
 
 #[derive(Debug, Clone)]
 pub enum AstPattern {

@@ -2,10 +2,14 @@
 use std::env;
 use std::process;
 use std::error::Error;
+use tinyml::ast_visitor::Visitable;
 use tinyml::util::read_file;
 use tinyml::lexer::Lexer;
 use tinyml::parser::Parser;
-use tinyml::ast_visitor::DebugVisitor;
+use tinyml::passes::{
+    visit_def::DefVisitor,
+    visit_debug::DebugVisitor
+}; 
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
@@ -32,11 +36,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ast = parser.parse()?;
     
     // build the AST visitor
-    let mut visitor = DebugVisitor::new();
+    let mut debug_visitor = DebugVisitor::new();
     
     // visit the ast
-    visitor.visit::<()>(&*ast)?;
+    debug_visitor.visit(&*ast)?;
     
+    // create a visitor to define symbols 
+    let mut def_visitor = DefVisitor::new();
+    def_visitor.visit(&*ast)?;    
+
     Ok(())
 }
 
