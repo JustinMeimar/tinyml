@@ -288,7 +288,6 @@ impl Lexer {
 
         let mut tokens: Vec<Token> = Vec::new();  
         while self.cur_idx < self.source.len() {
-    // pub fn tokenize(&mut self) -> Option<Box<Token>> {
             self.start_idx = self.cur_idx;
             
             // Get the remaining part of the source

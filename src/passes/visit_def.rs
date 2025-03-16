@@ -1,6 +1,5 @@
 use crate::ast_visitor::Visitable;
 
-
 pub struct DefVisitor {}
 
 impl DefVisitor {

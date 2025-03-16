@@ -1,5 +1,6 @@
 use crate::{ast::{AstNode, LiteralValue, AstPattern, Type, BinOp}, lexer::{Token, TokenType}};
-use crate::parse_error::{ParseErrorKind, ParseError};
+use crate::parse_error;
+use crate::parse_error::{ParseError, ErrKind};
 use std::result::Result;
 
 #[derive(Debug)]
@@ -33,16 +34,12 @@ impl Parser {
             if token.ty == expected {
                 Ok(())
             } else {
-                Err(ParseError::new(
-                    ParseErrorKind::UnexpectedToken,
-                    format!("Expected '{:?}', got '{:?}'", expected, token.ty)
-                ).with_position(pos))
+                let msg = format!("Expected '{:?}', got '{:?}'", expected, token.ty);
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos)) 
             }
         } else {
-            Err(ParseError::new(
-                ParseErrorKind::UnexpectedEOF,
-                format!("Expected '{:?}', got EOF", expected)
-            ).with_position(pos))
+            let msg = format!("Expected '{:?}', got EOF", expected);
+            Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
         }
     }
 
@@ -84,15 +81,15 @@ impl Parser {
                         self.consume();
                         Ok(Type::Var(id))
                     },
-                    Some(token) => Err(ParseError::new(
-                        ParseErrorKind::UnexpectedToken,
-                        format!("Failed to parse rule: var: ' ID. Expected ID, got {:?}", token)
-                    ).with_position(self.pos)),
-                    None => Err(ParseError::new(
-                        ParseErrorKind::UnexpectedEOF,
-                        "Failed to parse rule: var: ' ID. Unexpected EOF".to_string()
-                    ).with_position(self.pos)),
-                }
+                    Some(token) => {
+                        let msg = format!("Expected identifier for type name, recieved: {token}");
+                        Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+                    },
+                    None => {
+                        let msg = "Unexpected EOF";
+                        Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+                    }
+                 }
             },
             Some(TokenType::LeftParen) => {
                 self.consume(); // Consume '('
@@ -102,14 +99,14 @@ impl Parser {
                 self.expect(TokenType::RightParen)?;
                 Ok(Type::Product(Box::new(type1), Box::new(type2)))
             },
-            Some(token) => Err(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                format!("Expected a type, got {:?}", token)
-            ).with_position(pos)),
-            None => Err(ParseError::new(
-                ParseErrorKind::UnexpectedEOF,
-                "Expected a type, got EOF".to_string()
-            ).with_position(pos)),
+            Some(token) => {
+                let msg = format!("Expected a type, got {:?}", token);
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+            }
+            None => {
+                let msg ="Expected a type, got EOF";
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+            }
         }?;
 
         match self.peek() {
@@ -185,14 +182,14 @@ impl Parser {
                 self.expect(TokenType::RightBracket)?;
                 Ok(AstNode::List(items))
             },
-            Some(token) => Err(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                format!("Expected an atom, got {:?}", token)
-            ).with_position(pos)),
-            None => Err(ParseError::new(
-                ParseErrorKind::UnexpectedEOF,
-                "Expected an atom, got EOF".to_string()
-            ).with_position(pos)),
+            Some(token) => {
+                let msg = format!("Expected an atom, got {:?}", token);
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+            }
+            None => {
+                let msg = "Expected an atom, got EOF";
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+            },
         }
     }
 
@@ -334,10 +331,8 @@ impl Parser {
         }
         
         if arms.is_empty() {
-            return Err(ParseError::new(
-                ParseErrorKind::InvalidPattern,
-                "Match expression must have at least one arm".to_string()
-            ).with_position(pos));
+            let msg = "Match expression must have at least one arm";
+            return Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
         }
         
         Ok(arms)
@@ -378,10 +373,7 @@ impl Parser {
                 })
             },
             Some(_) => self.parse_comp_expr(),
-            None => Err(ParseError::new(
-                ParseErrorKind::UnexpectedEOF,
-                "Unexpected EOF while parsing expression".to_string()
-            ).with_position(pos)),
+            None => Err(parse_error!(ErrKind::UnexpectedToken, "TODO", pos)),
         }
     }
 
@@ -433,20 +425,18 @@ impl Parser {
                         typ,
                     })
                 } else {
-                    Err(ParseError::new(
-                        ParseErrorKind::UnexpectedToken,
-                        "Expected identifier after 'fun'".to_string()
-                    ).with_position(self.pos))
+                    let msg = "Expected identifier after 'fun'";  
+                    Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
                 }
             },
-            Some(token) => Err(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                format!("Expected 'val' or 'fun', got '{:?}'", token)
-            ).with_position(pos)),
-            None => Err(ParseError::new(
-                ParseErrorKind::UnexpectedEOF,
-                "Unexpected end of input while parsing declaration".to_string()
-            ).with_position(pos))
+            Some(token) => {
+                let msg = format!("Expected 'val' or 'fun', got '{:?}'", token);
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+            },
+            None => {
+                let msg = "Expected end of input after decl";
+                Err(parse_error!(ErrKind::UnexpectedEOF, msg, pos))
+            },
         }
     }
 
@@ -469,10 +459,9 @@ impl Parser {
         }
         
         if decls.is_empty() {
-            return Err(ParseError::new(
-                ParseErrorKind::InvalidDeclaration,
-                "Expected at least one declaration".to_string()
-            ).with_position(pos));
+            return Err(parse_error!(ErrKind::InvalidDeclaration,
+                    "Expected at least one declaration.",
+                    pos));
         }
         
         Ok(decls) 
@@ -509,20 +498,16 @@ impl Parser {
                     self.consume();
                     Ok(AstPattern::Var(id))
                 } else {
-                    Err(ParseError::new(
-                        ParseErrorKind::UnexpectedToken,
-                        "Expected identifier after single quote in pattern".to_string()
-                    ).with_position(self.pos))
+                    Err(parse_error!(ErrKind::UnexpectedToken,
+                            "Expected identifier after single quote in pattern",
+                            pos))
                 }
             },
-            Some(token) => Err(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                format!("Invalid pattern, unexpected token: {:?}", token)
-            ).with_position(pos)),
-            None => Err(ParseError::new(
-                ParseErrorKind::UnexpectedEOF,
-                "Unexpected EOF while parsing pattern".to_string()
-            ).with_position(pos)),
+            Some(token) => {
+                let msg = format!("Invalid pattern, unexpected token: {:?}", token);
+                Err(parse_error!(ErrKind::UnexpectedToken, msg, pos))
+            },
+            None => Err(parse_error!(ErrKind::UnexpectedToken, "Unexpected EOF", pos)), 
         }
     }
 }
